@@ -1,0 +1,16 @@
+Prepare goracle driver
+
+install oracle instant client
+https://oracle.github.io/odpi/doc/installation.html
+
+run
+
+```
+go run main.go comm.go  dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go  data_dump.go report_html.go report_junit.go  dump_tables "dev/dev@127.0.0.1/dev"  
+```
+```
+go run main.go comm.go dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go  data_dump.go report_html.go report_junit.go  dump "dev/dev@127.0.0.1/dev"  7
+```
+```
+go run main.go comm.go dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go data_dump.go report_html.go report_junit.go diff "dev/dev@127.0.0.1/dev"  7
+```
