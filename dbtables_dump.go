@@ -9,6 +9,7 @@ import (
 
 //DumpTablesWithUpdateTime dump tables with update time
 func DumpTablesWithUpdateTime() {
+	dumpTables()
 	dat, err := ioutil.ReadFile("./data/tables.txt")
 	check(err) 
 	lines := strings.Split(string(dat),"\n")
@@ -23,11 +24,12 @@ func DumpTablesWithUpdateTime() {
 		}
 	}
 
-	tablesWithUpdateTime := make([]string,0)
+	//tablesWithUpdateTime := make([]string,0)
+	tablesWithUpdateTime := make(map[string]struct{})
 	for t,tcs := range tables { 
 		for _,c := range tcs { 
 			if "UPDATE_TIME" == c {
-				tablesWithUpdateTime = append(tablesWithUpdateTime,t)
+				tablesWithUpdateTime[t] = struct{}{}				
 			}			
 		}
 	} 
@@ -35,7 +37,7 @@ func DumpTablesWithUpdateTime() {
 	f, err := os.Create("./data/tables_update.txt")
 	check(err)
 	defer f.Close()
-	for _,t := range tablesWithUpdateTime {
+	for t,_ := range tablesWithUpdateTime {
 		f.WriteString(t + "\n")
 	}
 }

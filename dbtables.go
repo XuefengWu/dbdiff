@@ -31,7 +31,7 @@ func LoadTables() map[string][]string {
 func queryTables(ctx context.Context,db *sql.DB) []string {
 	q := "SELECT table_name FROM dba_tables WHERE owner=:db_owner"
 	//MARK 
-	rows, err :=  db.QueryContext(ctx,q,sql.Named("db_owner", "UAT_TEST"))	 
+	rows, err :=  db.QueryContext(ctx,q,sql.Named("db_owner", "RELEASETEST"))	 
 	return scanOneColumns(rows,err)
 }
 
