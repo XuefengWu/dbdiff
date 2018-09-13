@@ -26,18 +26,38 @@ func removeLastSpace(data []string) []string{
 //Dumps dump all tables with update time
 func Dumps(){
 	tables := LoadTablesWithUpdate()
+	jobs := make(chan string, 1000)
+	results := make(chan int, 1000)
+	for w := 1; w <= 8; w++ {
+        go dumpWorker(w,jobs,results)
+	}
 	for _,table := range tables {
-		if len(table) < 1 {
-			return 
+		if len(table) > 1 {
+			jobs <- table			
 		}
+	}
+	close(jobs)
+	waitDumpResult(tables,results) 
+}
+ 
+func dumpWorker(id int, jobs <-chan string, result chan<- int) {
+    for table := range jobs {
 		start := time.Now().UnixNano() / 1000000 
 		res := Fetch(table)	
 		Dump(table,res)
-		end := time.Now().UnixNano() / 1000000
-		fmt.Println(table , " spend time: " , (end - start))
-	}
+		end := time.Now().UnixNano() / 1000000 
+		fmt.Println(table ," spend time: " ,(end - start), "ms @worker:",id)
+		result <- 1			
+    }
 }
- 
+func waitDumpResult(tables []string, results chan int) {			
+	for i,table := range tables {
+		if len(table) > 1 {
+			<-results	
+			fmt.Println(i,"/",len(tables))
+		} 
+	}	 
+}
 
 //Dump data to table named file
 func Dump(table string, res []string) {
