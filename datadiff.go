@@ -11,7 +11,7 @@ func Diffs()  map[string][]string {
 	tables := LoadTablesWithUpdate()
 	jobs := make(chan string, 1000)
 	results := make(chan map[string][]string, 1000)
-	for w := 1; w <= 4; w++ {
+	for w := 1; w <= 8; w++ {
         go worker(w,jobs,results)
     }
 	for _,table := range tables {
@@ -46,7 +46,7 @@ func worker(id int, jobs <-chan string, results chan<- map[string][]string) {
 		start := time.Now().UnixNano() / 1000000 
 		diffs := diff(table)
 		end := time.Now().UnixNano() / 1000000 
-		fmt.Println(table ,"diffs:",len(diffs)," spend time: " ,(end - start), "ms @worker:",id)
+		fmt.Println(table ,"diffs:",len(diffs) - 1," spend time: " ,(end - start), "ms @worker:",id)
 		results <- diffs		
     }
 }
