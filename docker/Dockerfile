@@ -7,7 +7,7 @@ RUN go get -u -v -t github.com/golang/dep/cmd/dep
 RUN dep init
 RUN go get github.com/sergi/go-diff/diffmatchpatch
 RUN dep ensure 
-COPY vendor/oracle/goracle/odpi vendor/gopkg.in/goracle.v2/odpi/
+COPY docker/vendor/oracle/goracle/odpi vendor/gopkg.in/goracle.v2/odpi/
 RUN go install -v ./...
 
 COPY vendor/oracle/instantclient_18_3 /go/src/dbdiff/vendor/instantclient_18_3/
