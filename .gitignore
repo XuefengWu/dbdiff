@@ -9,6 +9,7 @@ dbdiff
 
 # Test binary, build with `go test -c`
 *.test
+*/instantclient_18_3/*
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
