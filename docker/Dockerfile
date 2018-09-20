@@ -10,7 +10,7 @@ RUN dep ensure
 COPY docker/vendor/oracle/goracle/odpi vendor/gopkg.in/goracle.v2/odpi/
 RUN go install -v ./...
 
-COPY vendor/oracle/instantclient_18_3 /go/src/dbdiff/vendor/instantclient_18_3/
+COPY docker/vendor/oracle/instantclient_18_3 /go/src/dbdiff/vendor/instantclient_18_3/
 RUN apt-get update
 RUN apt-get -y -f install  libaio-dev
 RUN echo $PATH
