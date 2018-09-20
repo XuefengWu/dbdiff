@@ -53,11 +53,11 @@ func queryTablePrimaryKey(ctx context.Context,db *sql.DB, table string) []string
 	return res
 }
 func queryRecords(ctx context.Context,db *sql.DB, table string) []string {
-	const remainDay = 7
+	remainDay := remainDayConfig()
 	pks := queryTablePrimaryKey(ctx,db,table)
 	orders := strings.Join(pks,",")
 	q := fmt.Sprintf("SELECT * FROM %s where update_time > trunc((SYSDATE - :remain_day)) ORDER BY %s", table, orders)
-	
+	//fmt.Println(q)
 	rows, err := db.QueryContext(ctx, q, sql.Named("remain_day", remainDay))
 	if err != nil {
 		fmt.Println(err)
