@@ -3,14 +3,24 @@ Prepare goracle driver
 install oracle instant client
 https://oracle.github.io/odpi/doc/installation.html
 
-run
+dev run
 
 ```
-go run main.go comm.go  dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go  data_dump.go report_html.go report_junit.go  dump_tables "dev/dev@127.0.0.1/dev"  
+go run main.go comm.go dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go data_dump.go report_html.go report_junit.go config.go http_handler.go http
 ```
+
+Prepare
+---
+download and unzip instantclient_18_3 to docker/vendor/oracle/
+
+build
+---
 ```
-go run main.go comm.go dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go  data_dump.go report_html.go report_junit.go  dump "dev/dev@127.0.0.1/dev"  7
+docker build -f docker/Dockerfile -t dbdiff .
 ```
+
+run http
+---
 ```
-go run main.go comm.go dbtables.go dbtables_dump.go dbconn.go datadiff.go dbfetch.go data_dump.go report_html.go report_junit.go diff "dev/dev@127.0.0.1/dev"  7
+docker run -d --rm -p 8080:8080 --name "dbdiff" -t dbdiff http
 ```

@@ -9,11 +9,11 @@ import (
 )
 
 //LoadTables from DB for table: query table name
-func LoadTables() map[string][]string {
+func LoadTables(connString string) map[string][]string {
 	//read from db
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
- 	db,err := CreateConn()	 
+ 	db,err := CreateConn(connString)	 
 	 if err != nil { 
 		return nil
 	}

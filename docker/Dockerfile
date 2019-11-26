@@ -8,7 +8,7 @@ RUN dep init
 RUN go get github.com/sergi/go-diff/diffmatchpatch
 RUN dep ensure 
 COPY docker/vendor/oracle/goracle/odpi vendor/gopkg.in/goracle.v2/odpi/
-RUN go install -v ./...
+RUN go install -x -v ./...
 
 COPY docker/vendor/oracle/instantclient_18_3 /go/src/dbdiff/vendor/instantclient_18_3/
 RUN apt-get update
@@ -23,11 +23,11 @@ RUN echo $LD_LIBRARY_PATH
 
 VOLUME /workspace
 WORKDIR /workspace
-#RUN mkdir -p /workspace/data
-#COPY data/tables_update.txt /workspace/data
+RUN mkdir -p /workspace/data
+COPY data/tables_update.txt /workspace/data/
 
-CMD ["dbdiff"]
-
+ENTRYPOINT ["dbdiff"]
+CMD [""]
 ##$ run at parent directory
-##$ docker build -t -f docker/Dockerfile dbdiff .
+##$ docker build -f docker/Dockerfile -t dbdiff .
 ##$ docker run -it --rm --name dbdiff dbdiff diff "db_url" 1

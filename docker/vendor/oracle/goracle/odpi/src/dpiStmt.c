@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// Copyright (c) 2016, 2018, Oracle and/or its affiliates. All rights reserved.
+// Copyright (c) 2016, 2019, Oracle and/or its affiliates. All rights reserved.
 // This program is free software: you can modify it and/or redistribute it
 // under the terms of:
 //
@@ -67,6 +67,16 @@ static int dpiStmt__bind(dpiStmt *stmt, dpiVar *var, int addReference,
     if (pos == 0 && nameLength == 0)
         return dpiError__set(error, "bind zero length name",
                 DPI_ERR_NOT_SUPPORTED);
+
+    // prevent attempts to bind a statement to itself
+    if (var->type->oracleTypeNum == DPI_ORACLE_TYPE_STMT) {
+        for (i = 0; i < var->buffer.maxArraySize; i++) {
+            if (var->buffer.externalData[i].value.asStmt == stmt) {
+                return dpiError__set(error, "bind to self",
+                        DPI_ERR_NOT_SUPPORTED);
+            }
+        }
+    }
 
     // check to see if the bind position or name has already been bound
     found = 0;
@@ -202,9 +212,9 @@ static int dpiStmt__bind(dpiStmt *stmt, dpiVar *var, int addReference,
 //-----------------------------------------------------------------------------
 static int dpiStmt__check(dpiStmt *stmt, const char *fnName, dpiError *error)
 {
-    if (dpiGen__startPublicFn(stmt, DPI_HTYPE_STMT, fnName, 1, error) < 0)
+    if (dpiGen__startPublicFn(stmt, DPI_HTYPE_STMT, fnName, error) < 0)
         return DPI_FAILURE;
-    if (!stmt->handle)
+    if (!stmt->handle || (stmt->parentStmt && !stmt->parentStmt->handle))
         return dpiError__set(error, "check closed", DPI_ERR_STMT_CLOSED);
     if (dpiConn__checkConnected(stmt->conn, error) < 0)
         return DPI_FAILURE;
@@ -312,13 +322,16 @@ int dpiStmt__close(dpiStmt *stmt, const char *tag, uint32_t tagLength,
     dpiStmt__clearBindVars(stmt, error);
     dpiStmt__clearQueryVars(stmt, error);
     if (stmt->handle) {
-        if (!stmt->conn->deadSession && stmt->conn->handle) {
+        if (stmt->parentStmt) {
+            dpiGen__setRefCount(stmt->parentStmt, error, -1);
+            stmt->parentStmt = NULL;
+        } else if (!stmt->conn->deadSession && stmt->conn->handle) {
             if (stmt->isOwned)
                 dpiOci__handleFree(stmt->handle, DPI_OCI_HTYPE_STMT);
             else status = dpiOci__stmtRelease(stmt, tag, tagLength,
                     propagateErrors, error);
         }
-        if (!stmt->conn->closing)
+        if (!stmt->conn->closing && !stmt->parentStmt)
             dpiHandleList__removeHandle(stmt->conn->openStmts,
                     stmt->openSlotNum);
         stmt->handle = NULL;
@@ -469,6 +482,7 @@ static int dpiStmt__define(dpiStmt *stmt, uint32_t pos, dpiVar *var,
 {
     void *defineHandle = NULL;
     dpiQueryInfo *queryInfo;
+    int tempBool;
 
     // no need to perform define if variable is unchanged
     if (stmt->queryVars[pos - 1] == var)
@@ -500,6 +514,15 @@ static int dpiStmt__define(dpiStmt *stmt, uint32_t pos, dpiVar *var,
         if (dpiOci__attrSet(defineHandle, DPI_OCI_HTYPE_DEFINE,
                 (void*) &var->type->charsetForm, 0, DPI_OCI_ATTR_CHARSET_FORM,
                 "set charset form", error) < 0)
+            return DPI_FAILURE;
+    }
+
+    // specify that the LOB length should be prefetched
+    if (var->nativeTypeNum == DPI_NATIVE_TYPE_LOB) {
+        tempBool = 1;
+        if (dpiOci__attrSet(defineHandle, DPI_OCI_HTYPE_DEFINE,
+                (void*) &tempBool, 0, DPI_OCI_ATTR_LOBPREFETCH_LENGTH,
+                "set lob prefetch length", error) < 0)
             return DPI_FAILURE;
     }
 
@@ -542,10 +565,6 @@ static int dpiStmt__execute(dpiStmt *stmt, uint32_t numIters,
                     DPI_ERR_ARRAY_VAR_NOT_SUPPORTED);
         for (j = 0; j < var->buffer.maxArraySize; j++) {
             data = &var->buffer.externalData[j];
-            if (var->type->oracleTypeNum == DPI_ORACLE_TYPE_STMT &&
-                    data->value.asStmt == stmt)
-                return dpiError__set(error, "bind to self",
-                        DPI_ERR_NOT_SUPPORTED);
             if (dpiVar__setValue(var, &var->buffer, j, data, error) < 0)
                 return DPI_FAILURE;
             if (var->dynBindBuffers)
@@ -576,15 +595,30 @@ static int dpiStmt__execute(dpiStmt *stmt, uint32_t numIters,
 
     // perform execution
     // re-execute statement for ORA-01007: variable not in select list
-    // drop statement from cache for all but ORA-00001: unique key violated
+    // drop statement from cache for all errors (except those which are due to
+    // invalid data which may be fixed in subsequent execution)
     if (dpiOci__stmtExecute(stmt, numIters, mode, error) < 0) {
         dpiOci__attrGet(stmt->handle, DPI_OCI_HTYPE_STMT,
                 &error->buffer->offset, 0, DPI_OCI_ATTR_PARSE_ERROR_OFFSET,
                 "set parse offset", error);
-        if (reExecute && error->buffer->code == 1007)
-            return dpiStmt__reExecute(stmt, numIters, mode, error);
-        else if (error->buffer->code != 1)
-            stmt->deleteFromCache = 1;
+        switch (error->buffer->code) {
+            case 1007:
+                if (reExecute)
+                    return dpiStmt__reExecute(stmt, numIters, mode, error);
+                stmt->deleteFromCache = 1;
+                break;
+            case 1:
+            case 1400:
+            case 1438:
+            case 1461:
+            case 2290:
+            case 2291:
+            case 2292:
+            case 21525:
+                break;
+            default:
+                stmt->deleteFromCache = 1;
+        }
         return DPI_FAILURE;
     }
 
@@ -656,6 +690,10 @@ static int dpiStmt__fetch(dpiStmt *stmt, dpiError *error)
 void dpiStmt__free(dpiStmt *stmt, dpiError *error)
 {
     dpiStmt__close(stmt, NULL, 0, 0, error);
+    if (stmt->parentStmt) {
+        dpiGen__setRefCount(stmt->parentStmt, error, -1);
+        stmt->parentStmt = NULL;
+    }
     if (stmt->conn) {
         dpiGen__setRefCount(stmt->conn, error, -1);
         stmt->conn = NULL;
@@ -732,7 +770,7 @@ static int dpiStmt__getBatchErrors(dpiStmt *stmt, dpiError *error)
         // get error message
         localError.buffer = &stmt->batchErrors[i];
         localError.handle = batchErrorHandle;
-        dpiError__check(&localError, DPI_OCI_ERROR, stmt->conn,
+        dpiError__setFromOCI(&localError, DPI_OCI_ERROR, stmt->conn,
                 "get batch error");
         if (error->buffer->errorNum) {
             overallStatus = DPI_FAILURE;
@@ -1463,6 +1501,8 @@ int dpiStmt_getImplicitResult(dpiStmt *stmt, dpiStmt **implicitResult)
         if (dpiStmt__allocate(stmt->conn, 0, &tempStmt, &error) < 0)
             return dpiGen__endPublicFn(stmt, DPI_FAILURE, &error);
         tempStmt->handle = handle;
+        dpiGen__setRefCount(stmt, &error, 1);
+        tempStmt->parentStmt = stmt;
         if (dpiStmt__createQueryVars(tempStmt, &error) < 0) {
             dpiStmt__free(tempStmt, &error);
             return dpiGen__endPublicFn(stmt, DPI_FAILURE, &error);
@@ -1602,7 +1642,10 @@ int dpiStmt_getRowCount(dpiStmt *stmt, uint64_t *count)
     else if (stmt->statementType != DPI_STMT_TYPE_INSERT &&
             stmt->statementType != DPI_STMT_TYPE_UPDATE &&
             stmt->statementType != DPI_STMT_TYPE_DELETE &&
-            stmt->statementType != DPI_STMT_TYPE_MERGE) {
+            stmt->statementType != DPI_STMT_TYPE_MERGE &&
+            stmt->statementType != DPI_STMT_TYPE_CALL &&
+            stmt->statementType != DPI_STMT_TYPE_BEGIN &&
+            stmt->statementType != DPI_STMT_TYPE_DECLARE) {
         *count = 0;
     } else if (stmt->env->versionInfo->versionNum < 12) {
         if (dpiOci__attrGet(stmt->handle, DPI_OCI_HTYPE_STMT, &rowCount32, 0,
@@ -1794,4 +1837,3 @@ int dpiStmt_setFetchArraySize(dpiStmt *stmt, uint32_t arraySize)
     stmt->fetchArraySize = arraySize;
     return dpiGen__endPublicFn(stmt, DPI_SUCCESS, &error);
 }
-

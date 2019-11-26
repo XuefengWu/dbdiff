@@ -4,12 +4,13 @@ import (
 	"fmt"  
 	"os"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 )
 
 //DumpTablesWithUpdateTime dump tables with update time
-func DumpTablesWithUpdateTime() {
-	dumpTables()
+func DumpTablesWithUpdateTime(connString string) {
+	dumpTables(connString)
 	dat, err := ioutil.ReadFile("./data/tables.txt")
 	check(err) 
 	lines := strings.Split(string(dat),"\n")
@@ -42,8 +43,8 @@ func DumpTablesWithUpdateTime() {
 	}
 }
 
-func dumpTables() {
-	tables := LoadTables()
+func dumpTables(connString string) {
+	tables := LoadTables(connString)
 	f, err := os.Create("./data/tables.txt")
 	check(err)
 	defer f.Close()
@@ -59,12 +60,17 @@ func dumpTables() {
  
 //LoadTablesWithUpdate tables with update time
 func LoadTablesWithUpdate() []string {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	check(err) 
+	fmt.Println("LoadTablesWithUpdate current directory: ",dir)
 	dat, err := ioutil.ReadFile("./data/tables_update.txt")
 	check(err) 
 	lines := strings.Split(string(dat),"\n")
 	tables := make([]string,0)
 	for _,l := range lines {
-		tables = append(tables,l)
+		if !strings.HasPrefix(l, "-") {
+			tables = append(tables,l)
+		}		
 	}
 	return tables
 }

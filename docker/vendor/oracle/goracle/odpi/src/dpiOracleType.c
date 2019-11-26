@@ -298,24 +298,27 @@ static dpiOracleTypeNum dpiOracleType__convertFromOracle(uint16_t typeCode,
             if (charsetForm == DPI_SQLCS_NCHAR)
                 return DPI_ORACLE_TYPE_NVARCHAR;
             return DPI_ORACLE_TYPE_VARCHAR;
+        case DPI_SQLT_INT:
         case DPI_SQLT_FLT:
         case DPI_SQLT_NUM:
         case DPI_SQLT_PDN:
         case DPI_SQLT_VNU:
         case DPI_SQLT_BFLOAT:
         case DPI_SQLT_BDOUBLE:
+        case DPI_OCI_TYPECODE_SMALLINT:
             return DPI_ORACLE_TYPE_NUMBER;
         case DPI_SQLT_DAT:
         case DPI_SQLT_ODT:
             return DPI_ORACLE_TYPE_DATE;
         case DPI_SQLT_BIN:
+        case DPI_SQLT_LVB:
             return DPI_ORACLE_TYPE_RAW;
         case DPI_SQLT_AFC:
             if (charsetForm == DPI_SQLCS_NCHAR)
                 return DPI_ORACLE_TYPE_NCHAR;
             return DPI_ORACLE_TYPE_CHAR;
-        case DPI_SQLT_INT:
-        case DPI_OCI_TYPECODE_SMALLINT:
+        case DPI_OCI_TYPECODE_BINARY_INTEGER:
+        case DPI_OCI_TYPECODE_PLS_INTEGER:
             return DPI_ORACLE_TYPE_NATIVE_INT;
         case DPI_SQLT_IBFLOAT:
             return DPI_ORACLE_TYPE_NATIVE_FLOAT;
@@ -343,6 +346,7 @@ static dpiOracleTypeNum dpiOracleType__convertFromOracle(uint16_t typeCode,
         case DPI_SQLT_BFILE:
             return DPI_ORACLE_TYPE_BFILE;
         case DPI_SQLT_RDD:
+        case DPI_OCI_TYPECODE_ROWID:
             return DPI_ORACLE_TYPE_ROWID;
         case DPI_SQLT_RSET:
             return DPI_ORACLE_TYPE_STMT;
@@ -351,8 +355,10 @@ static dpiOracleTypeNum dpiOracleType__convertFromOracle(uint16_t typeCode,
         case DPI_SQLT_INTERVAL_YM:
             return DPI_ORACLE_TYPE_INTERVAL_YM;
         case DPI_SQLT_LNG:
+        case DPI_OCI_TYPECODE_LONG:
             return DPI_ORACLE_TYPE_LONG_VARCHAR;
         case DPI_SQLT_LBI:
+        case DPI_OCI_TYPECODE_LONG_RAW:
             return DPI_ORACLE_TYPE_LONG_RAW;
     }
     return (dpiOracleTypeNum) 0;
@@ -485,8 +491,14 @@ int dpiOracleType__populateTypeInfo(dpiConn *conn, void *handle,
         if (dpiObjectType__allocate(conn, handle, DPI_OCI_ATTR_TYPE_NAME,
                 &info->objectType, error) < 0)
             return DPI_FAILURE;
+        if (dpiObjectType__isXmlType(info->objectType)) {
+            dpiObjectType__free(info->objectType, error);
+            info->objectType = NULL;
+            info->ociTypeCode = DPI_SQLT_CHR;
+            info->oracleTypeNum = DPI_ORACLE_TYPE_LONG_VARCHAR;
+            info->defaultNativeTypeNum = DPI_NATIVE_TYPE_BYTES;
+        }
     }
 
     return DPI_SUCCESS;
 }
-

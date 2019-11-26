@@ -1,5 +1,5 @@
 //-----------------------------------------------------------------------------
-// Copyright (c) 2016, 2018, Oracle and/or its affiliates. All rights reserved.
+// Copyright (c) 2016, 2019, Oracle and/or its affiliates. All rights reserved.
 // This program is free software: you can modify it and/or redistribute it
 // under the terms of:
 //
@@ -44,8 +44,8 @@
 
 // define ODPI-C version information
 #define DPI_MAJOR_VERSION   3
-#define DPI_MINOR_VERSION   0
-#define DPI_PATCH_LEVEL     0
+#define DPI_MINOR_VERSION   2
+#define DPI_PATCH_LEVEL     2
 #define DPI_VERSION_SUFFIX
 
 #define DPI_STR_HELPER(x)       #x
@@ -152,7 +152,6 @@ typedef uint32_t dpiEventType;
 #define DPI_EVENT_STARTUP                           1
 #define DPI_EVENT_SHUTDOWN                          2
 #define DPI_EVENT_SHUTDOWN_ANY                      3
-#define DPI_EVENT_DROP_DB                           4
 #define DPI_EVENT_DEREG                             5
 #define DPI_EVENT_OBJCHANGE                         6
 #define DPI_EVENT_QUERYCHANGE                       7
@@ -414,6 +413,7 @@ typedef struct dpiObjectAttrInfo dpiObjectAttrInfo;
 typedef struct dpiObjectTypeInfo dpiObjectTypeInfo;
 typedef struct dpiPoolCreateParams dpiPoolCreateParams;
 typedef struct dpiQueryInfo dpiQueryInfo;
+typedef struct dpiQueue dpiQueue;
 typedef struct dpiShardingKeyColumn dpiShardingKeyColumn;
 typedef struct dpiSodaColl dpiSodaColl;
 typedef struct dpiSodaCollNames dpiSodaCollNames;
@@ -492,6 +492,7 @@ struct dpiConnCreateParams {
     uint8_t numShardingKeyColumns;
     dpiShardingKeyColumn *superShardingKeyColumns;
     uint8_t numSuperShardingKeyColumns;
+    int outNewSession;
 };
 
 // structure used for transferring data to/from ODPI-C
@@ -568,6 +569,8 @@ struct dpiPoolCreateParams {
     uint32_t timeout;
     uint32_t waitTimeout;
     uint32_t maxLifetimeSession;
+    const char *plsqlFixupCallback;
+    uint32_t plsqlFixupCallbackLength;
 };
 
 // structure used for transferring query metadata from ODPI-C
@@ -639,6 +642,7 @@ struct dpiSubscrCreateParams {
     uint8_t groupingClass;
     uint32_t groupingValue;
     uint8_t groupingType;
+    uint64_t outRegId;
 };
 
 // structure used for transferring messages in subscription callbacks
@@ -833,6 +837,10 @@ int dpiConn_newEnqOptions(dpiConn *conn, dpiEnqOptions **options);
 // create a new message properties object and return it
 int dpiConn_newMsgProps(dpiConn *conn, dpiMsgProps **props);
 
+// create a new AQ queue
+int dpiConn_newQueue(dpiConn *conn, const char *name, uint32_t nameLength,
+        dpiObjectType *payloadType, dpiQueue **queue);
+
 // create a new temporary LOB
 int dpiConn_newTempLob(dpiConn *conn, dpiOracleTypeNum lobType, dpiLob **lob);
 
@@ -933,6 +941,9 @@ dpiIntervalDS *dpiData_getIntervalDS(dpiData *data);
 // return the interval (years/months) portion of the data
 dpiIntervalYM *dpiData_getIntervalYM(dpiData *data);
 
+// return whether data value is null or not
+int dpiData_getIsNull(dpiData *data);
+
 // return the LOB portion of the data
 dpiLob *dpiData_getLOB(dpiData *data);
 
@@ -972,6 +983,9 @@ void dpiData_setIntervalYM(dpiData *data, int32_t years, int32_t months);
 
 // set the LOB portion of the data
 void dpiData_setLOB(dpiData *data, dpiLob *lob);
+
+// set data to the null value
+void dpiData_setNull(dpiData *data);
 
 // set the object portion of the data
 void dpiData_setObject(dpiData *data, dpiObject *obj);
@@ -1193,9 +1207,17 @@ int dpiMsgProps_getExceptionQ(dpiMsgProps *props, const char **value,
 // return the number of seconds until the message expires
 int dpiMsgProps_getExpiration(dpiMsgProps *props, int32_t *value);
 
+// return the message id for the message (after enqueuing or dequeuing)
+int dpiMsgProps_getMsgId(dpiMsgProps *props, const char **value,
+        uint32_t *valueLength);
+
 // return the original message id for the message
 int dpiMsgProps_getOriginalMsgId(dpiMsgProps *props, const char **value,
         uint32_t *valueLength);
+
+// return the payload of the message (object or bytes)
+int dpiMsgProps_getPayload(dpiMsgProps *props, dpiObject **obj,
+        const char **value, uint32_t *valueLength);
 
 // return the priority of the message
 int dpiMsgProps_getPriority(dpiMsgProps *props, int32_t *value);
@@ -1223,6 +1245,13 @@ int dpiMsgProps_setExpiration(dpiMsgProps *props, int32_t value);
 // set the original message id for the message
 int dpiMsgProps_setOriginalMsgId(dpiMsgProps *props, const char *value,
         uint32_t valueLength);
+
+// set the payload of the message (as a series of bytes)
+int dpiMsgProps_setPayloadBytes(dpiMsgProps *props, const char *value,
+        uint32_t valueLength);
+
+// set the payload of the message (as an object)
+int dpiMsgProps_setPayloadObject(dpiMsgProps *props, dpiObject *obj);
 
 // set the priority of the message
 int dpiMsgProps_setPriority(dpiMsgProps *props, int32_t value);
@@ -1390,6 +1419,35 @@ int dpiPool_setWaitTimeout(dpiPool *pool, uint32_t value);
 
 
 //-----------------------------------------------------------------------------
+// AQ Queue Methods (dpiQueue)
+//-----------------------------------------------------------------------------
+
+// add a reference to the queue
+int dpiQueue_addRef(dpiQueue *queue);
+
+// dequeue multiple messages from the queue
+int dpiQueue_deqMany(dpiQueue *queue, uint32_t *numProps, dpiMsgProps **props);
+
+// dequeue a single message from the queue
+int dpiQueue_deqOne(dpiQueue *queue, dpiMsgProps **props);
+
+// enqueue multiple message to the queue
+int dpiQueue_enqMany(dpiQueue *queue, uint32_t numProps, dpiMsgProps **props);
+
+// enqueue a single message to the queue
+int dpiQueue_enqOne(dpiQueue *queue, dpiMsgProps *props);
+
+// get a reference to the dequeue options associated with the queue
+int dpiQueue_getDeqOptions(dpiQueue *queue, dpiDeqOptions **options);
+
+// get a reference to the enqueue options associated with the queue
+int dpiQueue_getEnqOptions(dpiQueue *queue, dpiEnqOptions **options);
+
+// release a reference to the queue
+int dpiQueue_release(dpiQueue *queue);
+
+
+//-----------------------------------------------------------------------------
 // SODA Collection Methods (dpiSodaColl)
 //-----------------------------------------------------------------------------
 
@@ -1430,6 +1488,10 @@ int dpiSodaColl_getMetadata(dpiSodaColl *coll, const char **value,
 // get the name of the collection
 int dpiSodaColl_getName(dpiSodaColl *coll, const char **value,
         uint32_t *valueLength);
+
+// insert multiple documents into the SODA collection
+int dpiSodaColl_insertMany(dpiSodaColl *coll, uint32_t numDocs,
+        dpiSodaDoc **docs, uint32_t flags, dpiSodaDoc **insertedDocs);
 
 // insert a document into the SODA collection
 int dpiSodaColl_insertOne(dpiSodaColl *coll, dpiSodaDoc *doc, uint32_t flags,
@@ -1745,4 +1807,3 @@ int dpiVar_setFromStmt(dpiVar *var, uint32_t pos, dpiStmt *stmt);
 int dpiVar_setNumElementsInArray(dpiVar *var, uint32_t numElements);
 
 #endif
-

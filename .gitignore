@@ -15,4 +15,4 @@ dbdiff
 *.out
 
 .DS_Store
- 
+ *.lock
