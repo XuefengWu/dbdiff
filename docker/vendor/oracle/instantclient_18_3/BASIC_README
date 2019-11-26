@@ -1,0 +1,36 @@
+Basic Package Information
+=========================
+
+Thu Jun 28 10:53:06 UTC 2018
+
+Client Shared Library 64-bit - 18.3.0.0.0
+
+System name:	Linux
+Release:	2.6.39-400.298.2.el6uek.x86_64
+Version:	#1 SMP Mon Jan 22 13:13:37 PST 2018
+Machine:	x86_64
+
+TIMEZONE INFORMATION
+--------------------
+Operating in ORACLE_HOME environment.
+
+Small timezone file = timezone_31.dat
+Large timezone file = timezlrg_31.dat
+
+LICENSE AGREEMENT
+-----------------
+You acknowledge that your use of this copy of Oracle Instant Client software
+product is subject to, and may not exceed the use(s) for which you are
+authorized under one of the following:
+
+  (i) the license or cloud services terms that you accepted when you obtained
+      the right to use Oracle Instant Client software; or
+ (ii) the license terms that you agreed to when you placed your order with
+      Oracle for an Oracle product containing Oracle Instant Client software; or
+(iii) the Oracle Instant Client software license terms, if any, included with
+      the hardware that you acquired from Oracle; or, if (i), (ii) and or (iii)
+      are not applicable, then,
+ (iv) the Oracle Technology Network License Agreement (which you acknowledge
+      you have read and agree to) available at
+    http://www.oracle.com/technetwork/licenses/distribution-license-152002.html.
+
