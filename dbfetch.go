@@ -5,19 +5,22 @@ import (
 	"regexp"
 	"context"
 	"strings" 
+	"time"
 	"database/sql"	
 	_ "gopkg.in/goracle.v2"
 )
 
 //Fetch from DB for table: query table name
-func Fetch(ctx context.Context,table string,remainDay int,db *sql.DB) []string {
+func Fetch(table string,remainDay int,db *sql.DB) []string {
 	if len(table) < 1 {
 		return nil
 	}
-	return queryRecords(ctx,db,table,remainDay) 	  
+	return queryRecords(db,table,remainDay) 	  
 } 
  
-func queryTablePrimaryKey(ctx context.Context,db *sql.DB, table string) []string {
+func queryTablePrimaryKey(db *sql.DB, table string) []string {
+	ctx, cancel := context.WithTimeout(context.Background(), 1800*time.Second)
+	defer cancel()
 	q := fmt.Sprintf(`SELECT cols.column_name
 	FROM all_constraints cons, all_cons_columns cols
 	WHERE cols.table_name = '%s'
@@ -41,13 +44,14 @@ func queryTablePrimaryKey(ctx context.Context,db *sql.DB, table string) []string
 	}
 	return res
 }
-func queryRecords(ctx context.Context,db *sql.DB, table string,remainDay int) []string {	
-
+func queryRecords(db *sql.DB, table string,remainDay int) []string {	
+	ctx, cancel := context.WithTimeout(context.Background(), 1800*time.Second)
+	defer cancel()
 	q := fmt.Sprintf("SELECT * FROM %s where update_time > trunc((SYSDATE - :remain_day))", table)
 	//fmt.Println(q)
 	rows, err := db.QueryContext(ctx, q, sql.Named("remain_day", remainDay))
 	if err != nil {
-		fmt.Println("------")
+		fmt.Println("---queryRecords error---")
 		fmt.Println(q)
 		fmt.Println(err)
 		return nil

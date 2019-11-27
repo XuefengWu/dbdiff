@@ -23,8 +23,23 @@ func handleDiff(w http.ResponseWriter, r *http.Request) {
 	remainDay := int(i64)
 
 	start := time.Now().UnixNano() / 1000000
-	baselines := Dumps(remainDay,baseline)
-	res := Diffs(remainDay,target,baselines)
+	tables := LoadTablesWithUpdate()
+	baseLinesResultsCH := make(chan map[string]string, 1000)
+	baselinedb,err := CreateConn(baseline)	 
+	check(err) 
+	defer baselinedb.Close()
+	Dumps(remainDay,baselinedb,tables,baseLinesResultsCH)
+	targetResultsCH := make(chan map[string]string, 1000)
+	targetdb,err := CreateConn(target)	 
+	check(err) 
+	defer targetdb.Close()
+	Dumps(remainDay,targetdb,tables,targetResultsCH)
+
+	baseLinesResults := WaitDumpResult(tables,baseLinesResultsCH)
+	targetResults := WaitDumpResult(tables,targetResultsCH)
+
+	res := Diffs(baseLinesResults,targetResults,tables)
+	
 	DumpHTMLReport(res)
 	jsonString, err := json.Marshal(res)
 	check(err)

@@ -19,20 +19,20 @@ func main() {
 	act := args[1]	
 	start := time.Now().UnixNano() / 1000000 
 	if act == "dump" {
-		remainDay := RemainDayConfig()
-		connString := ConnStringConfig()
-		Dumps(remainDay,connString)
+		//remainDay := RemainDayConfig()
+		//connString := ConnStringConfig()
+		//Dumps(remainDay,connString)
 	}else if act == "dump_tables"{
-		connString := ConnStringConfig()
-		DumpTablesWithUpdateTime(connString)		
+		//connString := ConnStringConfig()
+		//DumpTablesWithUpdateTime(connString)		
 	} else if act == "diff" {
-		remainDay := RemainDayConfig()
-		connString := ConnStringConfig()
-		ls := make(map[string]string)
-		res := Diffs(remainDay,connString,ls)
-		DumpHTMLReport(res)
-		tables := LoadTablesWithUpdate()
-		DumpJunitReport(tables, res)
+		//remainDay := RemainDayConfig()
+		//connString := ConnStringConfig()
+		//ls := make(map[string]string)
+		//res := Diffs(remainDay,connString,ls)
+		//DumpHTMLReport(res)
+		//tables := LoadTablesWithUpdate()
+		//DumpJunitReport(tables, res)
 	} else {
 		http.HandleFunc("/diff", handleDiff)		 
 		http.HandleFunc("/report", reportHandler)
